@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五子棋遊戲</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #board {
+            background-color: #DEB887;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            margin: 20px;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #000;
+            display: inline-block;
+            margin: -1px;
+            position: relative;
+            cursor: pointer;
+        }
+        .piece {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px;
+            left: 2px;
+        }
+        .black {
+            background: radial-gradient(circle at 30% 30%, #666, #000);
+        }
+        .white {
+            background: radial-gradient(circle at 30% 30%, #fff, #ccc);
+        }
+        #status {
+            font-size: 24px;
+            margin: 20px;
+            color: #333;
+        }
+        #restart {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #restart:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>五子棋遊戲</h1>
+    <div id="status">輪到你下棋</div>
+    <div id="board"></div>
+    <button id="restart">重新開始</button>
+
+    <script>
+        class Gobang {
+            constructor() {
+                this.boardSize = 15;
+                this.board = Array(this.boardSize).fill().map(() => Array(this.boardSize).fill(null));
+                this.currentPlayer = 'black';
+                this.gameOver = false;
+                this.initBoard();
+                this.bindEvents();
+            }
+
+            initBoard() {
+                const boardElement = document.getElementById('board');
+                boardElement.innerHTML = '';
+                for (let i = 0; i < this.boardSize; i++) {
+                    for (let j = 0; j < this.boardSize; j++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.row = i;
+                        cell.dataset.col = j;
+                        boardElement.appendChild(cell);
+                    }
+                    boardElement.appendChild(document.createElement('br'));
+                }
+            }
+
+            bindEvents() {
+                document.getElementById('board').addEventListener('click', (e) => {
+                    if (this.gameOver || !e.target.classList.contains('cell')) return;
+                    const row = parseInt(e.target.dataset.row);
+                    const col = parseInt(e.target.dataset.col);
+                    if (this.board[row][col]) return;
+                    
+                    this.makeMove(row, col);
+                    if (!this.gameOver) {
+                        setTimeout(() => this.aiMove(), 500);
+                    }
+                });
+
+                document.getElementById('restart').addEventListener('click', () => {
+                    this.restart();
+                });
+            }
+
+            makeMove(row, col) {
+                if (this.board[row][col] || this.gameOver) return;
+                
+                this.board[row][col] = this.currentPlayer;
+                this.drawPiece(row, col);
+                
+                if (this.checkWin(row, col)) {
+                    this.gameOver = true;
+                    document.getElementById('status').textContent = 
+                        `${this.currentPlayer === 'black' ? '你' : '電腦'}贏了！`;
+                    return;
+                }
+                
+                this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+                document.getElementById('status').textContent = 
+                    this.currentPlayer === 'black' ? '輪到你下棋' : '電腦思考中...';
+            }
+
+            drawPiece(row, col) {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                const piece = document.createElement('div');
+                piece.className = `piece ${this.currentPlayer}`;
+                cell.appendChild(piece);
+            }
+
+            checkWin(row, col) {
+                const directions = [
+                    [1, 0], [0, 1], [1, 1], [1, -1]
+                ];
+                const color = this.board[row][col];
+
+                return directions.some(([dx, dy]) => {
+                    let count = 1;
+                    let x = row + dx;
+                    let y = col + dy;
+
+                    while (x >= 0 && x < this.boardSize && y >= 0 && y < this.boardSize && 
+                           this.board[x][y] === color) {
+                        count++;
+                        x += dx;
+                        y += dy;
+                    }
+
+                    x = row - dx;
+                    y = col - dy;
+
+                    while (x >= 0 && x < this.boardSize && y >= 0 && y < this.boardSize && 
+                           this.board[x][y] === color) {
+                        count++;
+                        x -= dx;
+                        y -= dy;
+                    }
+
+                    return count >= 5;
+                });
+            }
+
+            evaluatePosition(row, col, color) {
+                const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+                let score = 0;
+
+                directions.forEach(([dx, dy]) => {
+                    let count = 1;
+                    let blocked = 0;
+                    let x = row + dx;
+                    let y = col + dy;
+
+                    while (x >= 0 && x < this.boardSize && y >= 0 && y < this.boardSize) {
+                        if (this.board[x][y] === color) count++;
+                        else if (this.board[x][y] !== null) {
+                            blocked++;
+                            break;
+                        } else break;
+                        x += dx;
+                        y += dy;
+                    }
+
+                    x = row - dx;
+                    y = col - dy;
+
+                    while (x >= 0 && x < this.boardSize && y >= 0 && y < this.boardSize) {
+                        if (this.board[x][y] === color) count++;
+                        else if (this.board[x][y] !== null) {
+                            blocked++;
+                            break;
+                        } else break;
+                        x -= dx;
+                        y -= dy;
+                    }
+
+                    score += this.getScoreForCount(count, blocked);
+                });
+
+                return score;
+            }
+
+            getScoreForCount(count, blocked) {
+                if (count >= 5) return 100000;
+                if (blocked === 2) return 0;
+                switch (count) {
+                    case 4: return blocked === 0 ? 10000 : 1000;
+                    case 3: return blocked === 0 ? 1000 : 100;
+                    case 2: return blocked === 0 ? 100 : 10;
+                    case 1: return blocked === 0 ? 10 : 1;
+                    default: return 0;
+                }
+            }
+
+            aiMove() {
+                let bestScore = -Infinity;
+                let bestMove = null;
+
+                for (let i = 0; i < this.boardSize; i++) {
+                    for (let j = 0; j < this.boardSize; j++) {
+                        if (!this.board[i][j]) {
+                            let score = this.evaluatePosition(i, j, 'white');
+                            score += this.evaluatePosition(i, j, 'black') * 0.8;
+
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestMove = [i, j];
+                            }
+                        }
+                    }
+                }
+
+                if (bestMove) {
+                    this.makeMove(...bestMove);
+                }
+            }
+
+            restart() {
+                this.board = Array(this.boardSize).fill().map(() => Array(this.boardSize).fill(null));
+                this.currentPlayer = 'black';
+                this.gameOver = false;
+                this.initBoard();
+                document.getElementById('status').textContent = '輪到你下棋';
+            }
+        }
+
+        new Gobang();
+    </script>
+</body>
+</html>
